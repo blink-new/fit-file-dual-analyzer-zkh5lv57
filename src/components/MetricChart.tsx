@@ -1,12 +1,11 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine, Tooltip } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { ChartDataPoint } from '../types/fit';
 
 interface MetricChartProps {
   data: ChartDataPoint[];
   metric: string;
   color: string;
-  unit: string;
   timeDomain: [number, number];
   hoverTime?: number | null;
   onHover?: (time: number | null) => void;
@@ -29,20 +28,22 @@ const metricUnits: { [key: string]: string } = {
 };
 
 export function MetricChart({ data, metric, color, timeDomain, hoverTime, onHover }: MetricChartProps) {
-  // Filter data to only include points where this metric has valid values
   const validData = data.filter(point => {
     const value = point[metric as keyof ChartDataPoint] as number;
     return value !== undefined && value !== null && !isNaN(value);
   });
   
   if (validData.length === 0) {
-    return null;
+    return (
+        <div className="bg-white rounded-lg border shadow-sm h-[248px] flex items-center justify-center">
+            <p className="text-sm text-muted-foreground">No data available for {metricLabels[metric]}</p>
+        </div>
+    );
   }
 
-  // Use ALL data points to ensure perfect alignment, but only calculate Y domain from valid data
   const chartData = data.map(point => ({
     ...point,
-    [metric]: point[metric as keyof ChartDataPoint] || null
+    [metric]: point[metric as keyof ChartDataPoint] ?? null
   }));
 
   const values = validData.map(point => point[metric as keyof ChartDataPoint] as number);
@@ -51,7 +52,7 @@ export function MetricChart({ data, metric, color, timeDomain, hoverTime, onHove
   
   const range = maxValue - minValue;
   let padding = range * 0.1;
-  if (range === 0) padding = Math.max(maxValue * 0.1, 1);
+  if (range === 0) padding = Math.max(maxValue * 0.1, 5, 1);
 
   const yMin = Math.max(0, minValue - padding);
   const yMax = maxValue + padding;
@@ -79,26 +80,6 @@ export function MetricChart({ data, metric, color, timeDomain, hoverTime, onHove
     }
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length > 0) {
-      const value = payload[0].value;
-      if (value !== null && value !== undefined && !isNaN(value)) {
-        return (
-          <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm font-medium border border-gray-700">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-              <span>{metricLabels[metric]}: {formatYTick(value)} {metricUnits[metric]}</span>
-            </div>
-            <div className="text-gray-300 text-xs mt-1">
-              Time: {new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </div>
-          </div>
-        );
-      }
-    }
-    return null;
-  };
-
   return (
     <div className="bg-white rounded-lg border shadow-sm">
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50/50">
@@ -112,28 +93,21 @@ export function MetricChart({ data, metric, color, timeDomain, hoverTime, onHove
               data={chartData}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
-              margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+              margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
               syncId="trainingCharts"
             >
-              <CartesianGrid 
-                strokeDasharray="3 3" 
-                stroke="#f1f5f9" 
-                strokeWidth={1} 
-                horizontal={true} 
-                vertical={false} 
-              />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" strokeWidth={1} horizontal={true} vertical={false} />
               <XAxis 
                 dataKey="timestamp" 
                 type="number"
                 domain={timeDomain}
-                scale="time"
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={formatXAxis}
                 tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
                 interval="preserveStartEnd"
-                tickMargin={8}
-                allowDataOverflow={false}
+                tickMargin={10}
+                allowDataOverflow={true}
               />
               <YAxis 
                 domain={[yMin, yMax]}
@@ -144,12 +118,6 @@ export function MetricChart({ data, metric, color, timeDomain, hoverTime, onHove
                 tickFormatter={formatYTick}
                 tickMargin={8}
               />
-              <Tooltip 
-                content={<CustomTooltip />}
-                cursor={false}
-                position={{ y: -100 }}
-                allowEscapeViewBox={{ x: true, y: true }}
-              />
               <Line
                 type="monotone"
                 dataKey={metric}
@@ -158,16 +126,9 @@ export function MetricChart({ data, metric, color, timeDomain, hoverTime, onHove
                 dot={false}
                 activeDot={{ r: 4, stroke: color, strokeWidth: 2, fill: 'white' }}
                 connectNulls={false}
-                strokeDasharray={undefined}
               />
               {hoverTime && (
-                <ReferenceLine 
-                  x={hoverTime} 
-                  stroke="#475569" 
-                  strokeDasharray="2 2" 
-                  strokeWidth={1.5} 
-                  style={{ pointerEvents: 'none' }} 
-                />
+                <ReferenceLine x={hoverTime} stroke="#475569" strokeDasharray="2 2" strokeWidth={1.5} style={{ pointerEvents: 'none' }} />
               )}
             </LineChart>
           </ResponsiveContainer>
