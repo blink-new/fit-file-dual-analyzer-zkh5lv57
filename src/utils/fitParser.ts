@@ -1,5 +1,6 @@
 import FitParser from 'fit-file-parser';
 import { ProcessedFitData, FitRecord } from '../types/fit';
+import { cleanFitData } from './dataSmoothing';
 
 export class FitFileProcessor {
   private parser: FitParser;
@@ -64,24 +65,43 @@ export class FitFileProcessor {
 
           // Extract available metrics
           if (record.power !== undefined && record.power !== null && record.power > 0) {
-            fitRecord.power = record.power;
-            availableMetrics.add('power');
+            // Apply reasonable bounds for power (0-2000W for cycling)
+            if (record.power <= 2000) {
+              fitRecord.power = record.power;
+              availableMetrics.add('power');
+            }
           }
 
           if (record.heart_rate !== undefined && record.heart_rate !== null && record.heart_rate > 0) {
-            fitRecord.heart_rate = record.heart_rate;
-            availableMetrics.add('heart_rate');
+            // Apply reasonable bounds for heart rate (40-220 bpm)
+            if (record.heart_rate >= 40 && record.heart_rate <= 220) {
+              fitRecord.heart_rate = record.heart_rate;
+              availableMetrics.add('heart_rate');
+            }
           }
 
           if (record.speed !== undefined && record.speed !== null && record.speed > 0) {
             // Convert from m/s to km/h if needed
-            fitRecord.speed = record.speed * 3.6;
-            availableMetrics.add('speed');
+            let speed = record.speed;
+            
+            // If speed is already in km/h (common in some FIT files), don't convert
+            if (speed < 50) { // Assume m/s if less than 50 (reasonable for cycling)
+              speed = speed * 3.6;
+            }
+            
+            // Apply outlier detection for cycling speeds (reasonable max: 80 km/h)
+            if (speed <= 80) {
+              fitRecord.speed = speed;
+              availableMetrics.add('speed');
+            }
           }
 
           if (record.cadence !== undefined && record.cadence !== null && record.cadence > 0) {
-            fitRecord.cadence = record.cadence;
-            availableMetrics.add('cadence');
+            // Apply reasonable bounds for cadence (0-200 rpm for cycling)
+            if (record.cadence <= 200) {
+              fitRecord.cadence = record.cadence;
+              availableMetrics.add('cadence');
+            }
           }
 
           if (record.altitude !== undefined && record.altitude !== null) {
@@ -107,11 +127,14 @@ export class FitFileProcessor {
       throw new Error('No valid training data found in FIT file. File must contain at least one of: power, heart rate, speed, cadence, or elevation data.');
     }
 
+    // Apply data cleaning and smoothing
+    const cleanedRecords = cleanFitData(records);
+
     // Calculate summary statistics
-    const summary = this.calculateSummary(records, Array.from(availableMetrics));
+    const summary = this.calculateSummary(cleanedRecords, Array.from(availableMetrics));
 
     return {
-      records,
+      records: cleanedRecords,
       summary,
       availableMetrics: Array.from(availableMetrics)
     };

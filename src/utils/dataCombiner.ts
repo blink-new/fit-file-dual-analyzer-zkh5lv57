@@ -45,10 +45,13 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
 
   // Create time-aligned data points with unified time axis
   const chartData: ChartDataPoint[] = [];
-  const timeStep = Math.max(1000, Math.floor(duration * 1000 / 2000)); // Adaptive time step, max 2000 points
+  // Use smaller time step for better synchronization (1 second intervals)
+  const timeStep = 1000; // 1 second intervals for precise alignment
+  const maxPoints = 3600; // Limit to 1 hour of data at 1-second intervals
+  const actualTimeStep = duration > maxPoints ? Math.floor(duration * 1000 / maxPoints) : timeStep;
 
   // Create data points for the entire duration range to ensure alignment
-  for (let time = startTime; time <= endTime; time += timeStep) {
+  for (let time = startTime; time <= endTime; time += actualTimeStep) {
     const dataPoint: ChartDataPoint = {
       timestamp: time,
       time: formatTime((time - startTime) / 1000)
@@ -175,7 +178,7 @@ function interpolateDataPoint(records: any[], targetTime: number): { [key: strin
   return result;
 }
 
-function findClosestRecords(records: any[], targetTime: number, maxDistance = 10000) {
+function findClosestRecords(records: any[], targetTime: number, maxDistance = 5000) {
   const closeRecords = records.filter(record => 
     Math.abs(record.timestamp - targetTime) <= maxDistance
   );
@@ -183,7 +186,7 @@ function findClosestRecords(records: any[], targetTime: number, maxDistance = 10
   // Sort by distance to target time and return the closest ones
   return closeRecords
     .sort((a, b) => Math.abs(a.timestamp - targetTime) - Math.abs(b.timestamp - targetTime))
-    .slice(0, 3); // Take up to 3 closest records for better data coverage
+    .slice(0, 2); // Take up to 2 closest records for better precision
 }
 
 function getMetricPrecision(metric: string): number {

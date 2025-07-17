@@ -191,7 +191,7 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
                 type="monotone"
                 dataKey={metric}
                 stroke={color}
-                strokeWidth={2.5}
+                strokeWidth={2}
                 dot={false}
                 activeDot={{ 
                   r: 4, 
@@ -201,6 +201,11 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
                   style: { filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }
                 }}
                 connectNulls={false}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))'
+                }}
               />
               {hoverTimeString && (
                 <ReferenceLine 
