@@ -1,6 +1,5 @@
 import FitParser from 'fit-file-parser';
 import { ProcessedFitData, FitRecord } from '../types/fit';
-import { cleanFitData } from './dataSmoothing';
 
 export class FitFileProcessor {
   private parser: FitParser;
@@ -109,14 +108,11 @@ export class FitFileProcessor {
       throw new Error('No valid training data found in FIT file. File must contain at least one of: power, heart rate, speed, cadence, or elevation data.');
     }
 
-    // Apply data cleaning and smoothing
-    const cleanedRecords = cleanFitData(records);
-
     // Calculate summary statistics
-    const summary = this.calculateSummary(cleanedRecords, Array.from(availableMetrics));
+    const summary = this.calculateSummary(records, Array.from(availableMetrics));
 
     return {
-      records: cleanedRecords,
+      records,
       summary,
       availableMetrics: Array.from(availableMetrics)
     };

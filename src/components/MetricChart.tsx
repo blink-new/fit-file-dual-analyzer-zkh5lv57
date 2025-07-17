@@ -89,11 +89,16 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
     return 10;
   };
 
+  const formatXAxis = (tickItem: number) => {
+    const date = new Date(tickItem);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   const handleMouseMove = (e: any) => {
-    if (e && e.activeLabel) {
-      const timeString = e.activeLabel;
-      // Find the corresponding data point to get the exact timestamp
-      const dataPoint = data.find(d => d.time === timeString);
+    if (e && e.activeCoordinate) {
+      const { x } = e.activeCoordinate;
+      // Find the corresponding timestamp from the chart data
+      const dataPoint = data.find(d => d.timestamp >= x);
       if (dataPoint && onHover) {
         onHover(dataPoint.timestamp);
       }
@@ -107,7 +112,7 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
   };
 
   // Find the hover line position
-  const hoverTimeString = hoverTime ? data.find(d => d.timestamp === hoverTime)?.time : null;
+  const hoverTimestamp = hoverTime ? hoverTime : null;
 
   // Custom tooltip component
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -124,7 +129,7 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
               <span>{metricLabels[metric]}: {formatYTick(value)} {metricUnits[metric]}</span>
             </div>
             <div className="text-gray-300 text-xs mt-1">
-              Time: {label}
+              Time: {new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
           </div>
         );
@@ -164,9 +169,12 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
                 vertical={false}
               />
               <XAxis 
-                dataKey="time" 
+                dataKey="timestamp" 
+                type="number"
+                domain={['dataMin', 'dataMax']}
                 axisLine={false}
                 tickLine={false}
+                tickFormatter={formatXAxis}
                 tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
                 interval="preserveStartEnd"
                 tickMargin={8}
@@ -200,16 +208,16 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
                   fill: 'white',
                   style: { filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }
                 }}
-                connectNulls={false}
+                connectNulls={true}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 style={{
                   filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))'
                 }}
               />
-              {hoverTimeString && (
+              {hoverTimestamp && (
                 <ReferenceLine 
-                  x={hoverTimeString}
+                  x={hoverTimestamp}
                   stroke="#475569" 
                   strokeDasharray="2 2"
                   strokeWidth={1.5}
