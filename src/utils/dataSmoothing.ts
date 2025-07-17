@@ -25,7 +25,7 @@ export function smoothMetricData(
   
   // Extract values for the specific metric
   const values = records.map(record => record[metric] as number).filter(v => 
-    v !== undefined && v !== null && !isNaN(v) && v > 0
+    v !== undefined && v !== null && !isNaN(v) && v >= 0
   );
   
   if (values.length < windowSize) return records;
@@ -50,7 +50,7 @@ export function smoothMetricData(
   let smoothedIndex = 0;
   for (let i = 0; i < smoothedRecords.length; i++) {
     const originalValue = smoothedRecords[i][metric] as number;
-    if (originalValue !== undefined && originalValue !== null && !isNaN(originalValue) && originalValue > 0) {
+    if (originalValue !== undefined && originalValue !== null && !isNaN(originalValue) && originalValue >= 0) {
       if (smoothedIndex < smoothedValues.length) {
         smoothedRecords[i] = {
           ...smoothedRecords[i],
@@ -117,43 +117,13 @@ function medianFilter(values: number[], windowSize: number): number[] {
 }
 
 /**
- * Remove outliers using IQR method
+ * Remove outliers using IQR method (DISABLED - show real data as-is)
+ * This function now returns data unchanged to preserve original FIT file values
  */
 export function removeOutliers(values: number[], metric: string): number[] {
-  if (values.length < 4) return values;
-  
-  const sorted = [...values].sort((a, b) => a - b);
-  const q1Index = Math.floor(sorted.length * 0.25);
-  const q3Index = Math.floor(sorted.length * 0.75);
-  const q1 = sorted[q1Index];
-  const q3 = sorted[q3Index];
-  const iqr = q3 - q1;
-  
-  // Define outlier bounds based on metric type
-  let lowerBound = q1 - 1.5 * iqr;
-  let upperBound = q3 + 1.5 * iqr;
-  
-  // Apply metric-specific bounds
-  switch (metric) {
-    case 'speed':
-      lowerBound = Math.max(0, lowerBound);
-      upperBound = Math.min(80, upperBound); // Max cycling speed
-      break;
-    case 'heart_rate':
-      lowerBound = Math.max(40, lowerBound);
-      upperBound = Math.min(220, upperBound); // Max theoretical HR
-      break;
-    case 'power':
-      lowerBound = Math.max(0, lowerBound);
-      upperBound = Math.min(2000, upperBound); // Max reasonable power
-      break;
-    case 'cadence':
-      lowerBound = Math.max(0, lowerBound);
-      upperBound = Math.min(200, upperBound); // Max reasonable cadence
-      break;
-  }
-  
-  return values.filter(value => value >= lowerBound && value <= upperBound);
+  // Return data as-is without any outlier filtering
+  // The system should show the real data from FIT files without interpretation
+  return values;
 }
 
 /**

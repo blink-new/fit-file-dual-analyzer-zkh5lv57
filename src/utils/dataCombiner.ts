@@ -70,12 +70,12 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
     
     // Use interpolated values if available, otherwise use closest records
     availableMetrics.forEach(metric => {
-      if (interpolatedData[metric] !== undefined && interpolatedData[metric] > 0) {
+      if (interpolatedData[metric] !== undefined && interpolatedData[metric] >= 0) {
         dataPoint[metric as keyof ChartDataPoint] = interpolatedData[metric];
       } else {
         // Fallback to closest record
         const recordWithMetric = closestRecords.find(record => 
-          record[metric] !== undefined && record[metric] > 0
+          record[metric] !== undefined && record[metric] >= 0
         );
         if (recordWithMetric && recordWithMetric[metric] !== undefined) {
           dataPoint[metric as keyof ChartDataPoint] = recordWithMetric[metric];
@@ -104,7 +104,7 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
   availableMetrics.forEach(metric => {
     const values = completeChartData
       .map(point => point[metric as keyof ChartDataPoint] as number)
-      .filter(v => v !== undefined && v !== null && !isNaN(v) && v > 0);
+      .filter(v => v !== undefined && v !== null && !isNaN(v) && v >= 0);
 
     if (values.length > 0) {
       const sum = values.reduce((a, b) => a + b, 0);
@@ -149,7 +149,7 @@ function interpolateDataPoint(records: any[], targetTime: number): { [key: strin
     const closest = beforeRecord || afterRecord;
     if (closest) {
       ['power', 'heart_rate', 'speed', 'cadence', 'altitude'].forEach(metric => {
-        if (closest[metric] !== undefined && closest[metric] > 0) {
+        if (closest[metric] !== undefined && closest[metric] >= 0) {
           result[metric] = closest[metric];
         }
       });
@@ -166,11 +166,11 @@ function interpolateDataPoint(records: any[], targetTime: number): { [key: strin
     const afterValue = afterRecord[metric];
     
     if (beforeValue !== undefined && afterValue !== undefined && 
-        beforeValue > 0 && afterValue > 0) {
+        beforeValue >= 0 && afterValue >= 0) {
       result[metric] = beforeValue + (afterValue - beforeValue) * timeRatio;
-    } else if (beforeValue !== undefined && beforeValue > 0) {
+    } else if (beforeValue !== undefined && beforeValue >= 0) {
       result[metric] = beforeValue;
-    } else if (afterValue !== undefined && afterValue > 0) {
+    } else if (afterValue !== undefined && afterValue >= 0) {
       result[metric] = afterValue;
     }
   });

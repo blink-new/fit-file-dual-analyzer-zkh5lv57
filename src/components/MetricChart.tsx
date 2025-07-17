@@ -31,7 +31,7 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
   // Use all data points to maintain time alignment, but filter for calculations
   const validData = data.filter(point => {
     const value = point[metric as keyof ChartDataPoint] as number;
-    return value !== undefined && value !== null && !isNaN(value) && value > 0;
+    return value !== undefined && value !== null && !isNaN(value) && value >= 0;
   });
   
   if (validData.length === 0) {
@@ -113,7 +113,7 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length > 0) {
       const value = payload[0].value;
-      if (value !== null && value !== undefined && !isNaN(value) && value > 0) {
+      if (value !== null && value !== undefined && !isNaN(value) && value >= 0) {
         return (
           <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm font-medium border border-gray-700">
             <div className="flex items-center space-x-2">

@@ -63,45 +63,27 @@ export class FitFileProcessor {
             timestamp: new Date(record.timestamp).getTime()
           };
 
-          // Extract available metrics
-          if (record.power !== undefined && record.power !== null && record.power > 0) {
-            // Apply reasonable bounds for power (0-2000W for cycling)
-            if (record.power <= 2000) {
-              fitRecord.power = record.power;
-              availableMetrics.add('power');
-            }
+          // Extract available metrics - show data as-is from FIT file
+          if (record.power !== undefined && record.power !== null && record.power >= 0) {
+            fitRecord.power = record.power;
+            availableMetrics.add('power');
           }
 
           if (record.heart_rate !== undefined && record.heart_rate !== null && record.heart_rate > 0) {
-            // Apply reasonable bounds for heart rate (40-220 bpm)
-            if (record.heart_rate >= 40 && record.heart_rate <= 220) {
-              fitRecord.heart_rate = record.heart_rate;
-              availableMetrics.add('heart_rate');
-            }
+            fitRecord.heart_rate = record.heart_rate;
+            availableMetrics.add('heart_rate');
           }
 
-          if (record.speed !== undefined && record.speed !== null && record.speed > 0) {
-            // Convert from m/s to km/h if needed
-            let speed = record.speed;
-            
-            // If speed is already in km/h (common in some FIT files), don't convert
-            if (speed < 50) { // Assume m/s if less than 50 (reasonable for cycling)
-              speed = speed * 3.6;
-            }
-            
-            // Apply outlier detection for cycling speeds (reasonable max: 80 km/h)
-            if (speed <= 80) {
-              fitRecord.speed = speed;
-              availableMetrics.add('speed');
-            }
+          if (record.speed !== undefined && record.speed !== null && record.speed >= 0) {
+            // FIT parser already handles unit conversion based on speedUnit config
+            // Show the data as provided by the parser
+            fitRecord.speed = record.speed;
+            availableMetrics.add('speed');
           }
 
-          if (record.cadence !== undefined && record.cadence !== null && record.cadence > 0) {
-            // Apply reasonable bounds for cadence (0-200 rpm for cycling)
-            if (record.cadence <= 200) {
-              fitRecord.cadence = record.cadence;
-              availableMetrics.add('cadence');
-            }
+          if (record.cadence !== undefined && record.cadence !== null && record.cadence >= 0) {
+            fitRecord.cadence = record.cadence;
+            availableMetrics.add('cadence');
           }
 
           if (record.altitude !== undefined && record.altitude !== null) {
