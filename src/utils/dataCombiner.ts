@@ -43,15 +43,21 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
     ...(file2Data?.availableMetrics || [])
   ]));
 
-  // Create time-aligned data points with better interpolation
+  // Create time-aligned data points with unified time axis
   const chartData: ChartDataPoint[] = [];
   const timeStep = Math.max(1000, Math.floor(duration * 1000 / 2000)); // Adaptive time step, max 2000 points
 
+  // Create data points for the entire duration range to ensure alignment
   for (let time = startTime; time <= endTime; time += timeStep) {
     const dataPoint: ChartDataPoint = {
       timestamp: time,
       time: formatTime((time - startTime) / 1000)
     };
+
+    // Initialize all metrics as undefined to ensure consistent structure
+    availableMetrics.forEach(metric => {
+      dataPoint[metric as keyof ChartDataPoint] = undefined;
+    });
 
     // Find the closest records from both files for this timestamp
     const closestRecords = findClosestRecords(allRecords, time);
@@ -61,11 +67,13 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
     
     // Use interpolated values if available, otherwise use closest records
     availableMetrics.forEach(metric => {
-      if (interpolatedData[metric] !== undefined) {
+      if (interpolatedData[metric] !== undefined && interpolatedData[metric] > 0) {
         dataPoint[metric as keyof ChartDataPoint] = interpolatedData[metric];
       } else {
         // Fallback to closest record
-        const recordWithMetric = closestRecords.find(record => record[metric] !== undefined);
+        const recordWithMetric = closestRecords.find(record => 
+          record[metric] !== undefined && record[metric] > 0
+        );
         if (recordWithMetric && recordWithMetric[metric] !== undefined) {
           dataPoint[metric as keyof ChartDataPoint] = recordWithMetric[metric];
         }
@@ -75,11 +83,23 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
     chartData.push(dataPoint);
   }
 
+  // Ensure all charts have the same data length by filling gaps
+  // This guarantees perfect alignment across all charts
+  const completeChartData = chartData.map(point => {
+    const completePoint = { ...point };
+    availableMetrics.forEach(metric => {
+      if (completePoint[metric as keyof ChartDataPoint] === undefined) {
+        completePoint[metric as keyof ChartDataPoint] = null;
+      }
+    });
+    return completePoint;
+  });
+
   // Calculate combined statistics with proper filtering
   const stats: { [key: string]: { avg?: number; max?: number; min?: number } } = {};
   
   availableMetrics.forEach(metric => {
-    const values = chartData
+    const values = completeChartData
       .map(point => point[metric as keyof ChartDataPoint] as number)
       .filter(v => v !== undefined && v !== null && !isNaN(v) && v > 0);
 
@@ -100,7 +120,7 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
   });
 
   return {
-    chartData,
+    chartData: completeChartData,
     summary: {
       duration,
       availableMetrics,

@@ -115,17 +115,21 @@ export function AnalysisDashboard({ combinedData, onNewUpload }: AnalysisDashboa
           {/* Statistics Panel */}
           <div className={cn(
             "transition-all duration-300 ease-in-out",
-            "hidden lg:block",
-            statisticsPanelCollapsed ? "w-0 overflow-hidden" : "w-80 flex-shrink-0"
+            "hidden lg:block relative",
+            statisticsPanelCollapsed ? "w-0 overflow-visible" : "w-80 flex-shrink-0"
           )}>
             <div className="sticky top-6">
               <div className="relative">
-                {/* Collapse Button */}
+                {/* Collapse/Expand Button - Always visible */}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setStatisticsPanelCollapsed(!statisticsPanelCollapsed)}
-                  className="absolute -left-10 top-4 z-10 h-8 w-8 p-0 bg-white border shadow-sm hover:bg-gray-50"
+                  className={cn(
+                    "absolute top-4 z-20 h-8 w-8 p-0 bg-white border shadow-sm hover:bg-gray-50",
+                    statisticsPanelCollapsed ? "-right-10" : "-left-10"
+                  )}
+                  title={statisticsPanelCollapsed ? "Show Statistics" : "Hide Statistics"}
                 >
                   {statisticsPanelCollapsed ? (
                     <ChevronLeft className="w-4 h-4" />
@@ -150,10 +154,51 @@ export function AnalysisDashboard({ combinedData, onNewUpload }: AnalysisDashboa
         )}
       </div>
 
-      {/* Hover Time Indicator */}
+      {/* Comprehensive Hover Data Display */}
       {hoverTime && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg">
-          Time: {chartData.find(d => d.timestamp === hoverTime)?.time || 'N/A'}
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg text-sm font-medium shadow-lg border border-gray-700 max-w-sm">
+          <div className="text-center text-gray-300 text-xs mb-2">
+            Time: {chartData.find(d => d.timestamp === hoverTime)?.time || 'N/A'}
+          </div>
+          <div className="grid grid-cols-1 gap-1">
+            {summary.availableMetrics.map(metric => {
+              const dataPoint = chartData.find(d => d.timestamp === hoverTime);
+              const value = dataPoint?.[metric as keyof ChartDataPoint] as number;
+              const unit = {
+                power: 'W',
+                heart_rate: 'bpm',
+                speed: 'km/h',
+                cadence: 'rpm',
+                altitude: 'm'
+              }[metric] || '';
+              
+              if (value !== null && value !== undefined && !isNaN(value) && value > 0) {
+                return (
+                  <div key={metric} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: metricColors[metric] || '#6B7280' }}
+                      />
+                      <span className="text-xs">
+                        {{
+                          power: 'Power',
+                          heart_rate: 'HR',
+                          speed: 'Speed',
+                          cadence: 'Cadence',
+                          altitude: 'Elevation'
+                        }[metric] || metric}:
+                      </span>
+                    </div>
+                    <span className="text-xs font-medium">
+                      {metric === 'speed' ? value.toFixed(1) : Math.round(value)} {unit}
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
         </div>
       )}
     </div>

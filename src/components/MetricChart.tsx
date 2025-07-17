@@ -1,5 +1,5 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine, Tooltip } from 'recharts';
 import { ChartDataPoint } from '../types/fit';
 
 interface MetricChartProps {
@@ -28,18 +28,21 @@ const metricUnits: { [key: string]: string } = {
 };
 
 export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricChartProps) {
-  // Filter data to only include points with valid values for this metric
-  const filteredData = data.filter(point => {
+  // Use all data points to maintain time alignment, but filter for calculations
+  const validData = data.filter(point => {
     const value = point[metric as keyof ChartDataPoint] as number;
     return value !== undefined && value !== null && !isNaN(value) && value > 0;
   });
   
-  if (filteredData.length === 0) {
+  if (validData.length === 0) {
     return null;
   }
 
+  // Use complete data for chart to maintain alignment, but calculate domain from valid data
+  const chartData = data;
+
   // Calculate proper Y-axis domain with smart scaling
-  const values = filteredData.map(point => point[metric as keyof ChartDataPoint] as number);
+  const values = validData.map(point => point[metric as keyof ChartDataPoint] as number);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   
@@ -106,6 +109,30 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
   // Find the hover line position
   const hoverTimeString = hoverTime ? data.find(d => d.timestamp === hoverTime)?.time : null;
 
+  // Custom tooltip component
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length > 0) {
+      const value = payload[0].value;
+      if (value !== null && value !== undefined && !isNaN(value) && value > 0) {
+        return (
+          <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm font-medium border border-gray-700">
+            <div className="flex items-center space-x-2">
+              <div 
+                className="w-3 h-3 rounded-full" 
+                style={{ backgroundColor: color }}
+              />
+              <span>{metricLabels[metric]}: {formatYTick(value)} {metricUnits[metric]}</span>
+            </div>
+            <div className="text-gray-300 text-xs mt-1">
+              Time: {label}
+            </div>
+          </div>
+        );
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="bg-white rounded-lg border shadow-sm">
       {/* Chart Header */}
@@ -123,7 +150,7 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
         <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={filteredData}
+              data={chartData}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
@@ -153,6 +180,12 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
                 tickCount={getYTickCount()}
                 tickFormatter={formatYTick}
                 tickMargin={8}
+              />
+              <Tooltip 
+                content={<CustomTooltip />}
+                cursor={false}
+                position={{ x: 0, y: 0 }}
+                allowEscapeViewBox={{ x: true, y: true }}
               />
               <Line
                 type="monotone"
