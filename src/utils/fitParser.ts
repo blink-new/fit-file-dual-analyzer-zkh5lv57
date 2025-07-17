@@ -63,23 +63,23 @@ export class FitFileProcessor {
           };
 
           // Extract available metrics
-          if (record.power !== undefined && record.power !== null) {
+          if (record.power !== undefined && record.power !== null && record.power > 0) {
             fitRecord.power = record.power;
             availableMetrics.add('power');
           }
 
-          if (record.heart_rate !== undefined && record.heart_rate !== null) {
+          if (record.heart_rate !== undefined && record.heart_rate !== null && record.heart_rate > 0) {
             fitRecord.heart_rate = record.heart_rate;
             availableMetrics.add('heart_rate');
           }
 
-          if (record.speed !== undefined && record.speed !== null) {
+          if (record.speed !== undefined && record.speed !== null && record.speed > 0) {
             // Convert from m/s to km/h if needed
             fitRecord.speed = record.speed * 3.6;
             availableMetrics.add('speed');
           }
 
-          if (record.cadence !== undefined && record.cadence !== null) {
+          if (record.cadence !== undefined && record.cadence !== null && record.cadence > 0) {
             fitRecord.cadence = record.cadence;
             availableMetrics.add('cadence');
           }

@@ -28,21 +28,68 @@ const metricUnits: { [key: string]: string } = {
 };
 
 export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricChartProps) {
-  const filteredData = data.filter(point => point[metric as keyof ChartDataPoint] !== undefined);
+  // Filter data to only include points with valid values for this metric
+  const filteredData = data.filter(point => {
+    const value = point[metric as keyof ChartDataPoint] as number;
+    return value !== undefined && value !== null && !isNaN(value) && value > 0;
+  });
   
   if (filteredData.length === 0) {
     return null;
   }
 
+  // Calculate proper Y-axis domain with smart scaling
   const values = filteredData.map(point => point[metric as keyof ChartDataPoint] as number);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const padding = (maxValue - minValue) * 0.1;
+  
+  // Smart padding based on metric type and value range
+  const range = maxValue - minValue;
+  let padding: number;
+  
+  if (range === 0) {
+    // Single value case
+    padding = Math.max(maxValue * 0.1, 1);
+  } else if (range < 10) {
+    // Small range - use fixed padding
+    padding = 2;
+  } else {
+    // Normal range - use percentage padding
+    padding = range * 0.1;
+  }
+
+  // Calculate domain with proper bounds
+  const yMin = Math.max(0, minValue - padding);
+  const yMax = maxValue + padding;
+
+  // Format Y-axis ticks based on metric type
+  const formatYTick = (value: number) => {
+    switch (metric) {
+      case 'speed':
+        return value.toFixed(1);
+      case 'power':
+      case 'heart_rate':
+      case 'cadence':
+      case 'altitude':
+        return Math.round(value).toString();
+      default:
+        return value.toString();
+    }
+  };
+
+  // Calculate tick interval for Y-axis
+  const getYTickCount = () => {
+    const range = yMax - yMin;
+    if (range <= 10) return 5;
+    if (range <= 50) return 6;
+    if (range <= 200) return 8;
+    return 10;
+  };
 
   const handleMouseMove = (e: any) => {
     if (e && e.activeLabel) {
       const timeString = e.activeLabel;
-      // Convert time string back to timestamp for synchronization
+      // Find the corresponding data point to get the exact timestamp
       const dataPoint = data.find(d => d.time === timeString);
       if (dataPoint && onHover) {
         onHover(dataPoint.timestamp);
@@ -56,58 +103,84 @@ export function MetricChart({ data, metric, color, hoverTime, onHover }: MetricC
     }
   };
 
+  // Find the hover line position
+  const hoverTimeString = hoverTime ? data.find(d => d.timestamp === hoverTime)?.time : null;
+
   return (
-    <div className="bg-white rounded-lg border p-4 h-48">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-gray-900">
+    <div className="bg-white rounded-lg border shadow-sm">
+      {/* Chart Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50/50">
+        <h3 className="text-sm font-semibold text-gray-900">
           {metricLabels[metric] || metric}
         </h3>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
           {metricUnits[metric] || ''}
         </span>
       </div>
       
-      <div className="h-36">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={filteredData}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis 
-              dataKey="time" 
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 10, fill: '#666' }}
-              interval="preserveStartEnd"
-            />
-            <YAxis 
-              domain={[minValue - padding, maxValue + padding]}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 10, fill: '#666' }}
-              width={35}
-            />
-            <Line
-              type="monotone"
-              dataKey={metric}
-              stroke={color}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 3, stroke: color, strokeWidth: 2, fill: 'white' }}
-            />
-            {hoverTime && (
-              <ReferenceLine 
-                x={data.find(d => d.timestamp === hoverTime)?.time} 
-                stroke="#666" 
-                strokeDasharray="2 2"
+      {/* Chart Container */}
+      <div className="p-4">
+        <div className="h-40">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={filteredData}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+              syncId="trainingCharts"
+            >
+              <CartesianGrid 
+                strokeDasharray="3 3" 
+                stroke="#f1f5f9" 
                 strokeWidth={1}
+                horizontal={true}
+                vertical={false}
               />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
+              <XAxis 
+                dataKey="time" 
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
+                interval="preserveStartEnd"
+                tickMargin={8}
+              />
+              <YAxis 
+                domain={[yMin, yMax]}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
+                width={45}
+                tickCount={getYTickCount()}
+                tickFormatter={formatYTick}
+                tickMargin={8}
+              />
+              <Line
+                type="monotone"
+                dataKey={metric}
+                stroke={color}
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ 
+                  r: 4, 
+                  stroke: color, 
+                  strokeWidth: 2, 
+                  fill: 'white',
+                  style: { filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }
+                }}
+                connectNulls={false}
+              />
+              {hoverTimeString && (
+                <ReferenceLine 
+                  x={hoverTimeString}
+                  stroke="#475569" 
+                  strokeDasharray="2 2"
+                  strokeWidth={1.5}
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
