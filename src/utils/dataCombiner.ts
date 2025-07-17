@@ -32,7 +32,7 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
   // Sort by timestamp
   allRecords.sort((a, b) => a.timestamp - b.timestamp);
 
-  // Get time range
+  // Get ABSOLUTE time range - this ensures ALL charts start and end at the same time
   const startTime = allRecords[0].timestamp;
   const endTime = allRecords[allRecords.length - 1].timestamp;
   const duration = (endTime - startTime) / 1000; // seconds
@@ -43,66 +43,40 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
     ...(file2Data?.availableMetrics || [])
   ]));
 
-  // Create time-aligned data points with unified time axis
-  const chartData: ChartDataPoint[] = [];
-  // Use smaller time step for better synchronization (1 second intervals)
-  const timeStep = 1000; // 1 second intervals for precise alignment
-  const maxPoints = 3600; // Limit to 1 hour of data at 1-second intervals
-  const actualTimeStep = duration > maxPoints ? Math.floor(duration * 1000 / maxPoints) : timeStep;
-
-  // Create data points for the entire duration range to ensure alignment
-  for (let time = startTime; time <= endTime; time += actualTimeStep) {
-    const dataPoint: ChartDataPoint = {
-      timestamp: time,
-      time: formatTime((time - startTime) / 1000)
-    };
-
-    // Initialize all metrics as undefined to ensure consistent structure
-    availableMetrics.forEach(metric => {
-      dataPoint[metric as keyof ChartDataPoint] = undefined;
-    });
-
-    // Find the closest records from both files for this timestamp
-    const closestRecords = findClosestRecords(allRecords, time);
-    
-    // Merge data from closest records with interpolation for smoother curves
-    const interpolatedData = interpolateDataPoint(allRecords, time);
-    
-    // Use interpolated values if available, otherwise use closest records
-    availableMetrics.forEach(metric => {
-      if (interpolatedData[metric] !== undefined && interpolatedData[metric] >= 0) {
-        dataPoint[metric as keyof ChartDataPoint] = interpolatedData[metric];
-      } else {
-        // Fallback to closest record
-        const recordWithMetric = closestRecords.find(record => 
-          record[metric] !== undefined && record[metric] >= 0
-        );
-        if (recordWithMetric && recordWithMetric[metric] !== undefined) {
-          dataPoint[metric as keyof ChartDataPoint] = recordWithMetric[metric];
-        }
-      }
-    });
-
-    chartData.push(dataPoint);
+  // Create UNIFIED time axis - every chart will have exactly the same timestamps
+  const timeStep = Math.max(1000, Math.floor(duration * 1000 / 2000)); // Max 2000 points, min 1 second
+  const unifiedTimestamps: number[] = [];
+  
+  for (let time = startTime; time <= endTime; time += timeStep) {
+    unifiedTimestamps.push(time);
+  }
+  
+  // Ensure we always include the exact end time
+  if (unifiedTimestamps[unifiedTimestamps.length - 1] !== endTime) {
+    unifiedTimestamps.push(endTime);
   }
 
-  // Ensure all charts have the same data length by filling gaps
-  // This guarantees perfect alignment across all charts
-  const completeChartData = chartData.map(point => {
-    const completePoint = { ...point };
+  // Create chart data with IDENTICAL timestamps for ALL metrics
+  const chartData: ChartDataPoint[] = unifiedTimestamps.map(timestamp => {
+    const dataPoint: ChartDataPoint = {
+      timestamp,
+      time: formatTime((timestamp - startTime) / 1000)
+    };
+
+    // For each metric, find the best value at this exact timestamp
     availableMetrics.forEach(metric => {
-      if (completePoint[metric as keyof ChartDataPoint] === undefined) {
-        completePoint[metric as keyof ChartDataPoint] = null;
-      }
+      const value = getValueAtTimestamp(allRecords, timestamp, metric);
+      dataPoint[metric as keyof ChartDataPoint] = value;
     });
-    return completePoint;
+
+    return dataPoint;
   });
 
-  // Calculate combined statistics with proper filtering
+  // Calculate statistics
   const stats: { [key: string]: { avg?: number; max?: number; min?: number } } = {};
   
   availableMetrics.forEach(metric => {
-    const values = completeChartData
+    const values = chartData
       .map(point => point[metric as keyof ChartDataPoint] as number)
       .filter(v => v !== undefined && v !== null && !isNaN(v) && v >= 0);
 
@@ -112,7 +86,6 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
       const max = Math.max(...values);
       const min = Math.min(...values);
 
-      // Round based on metric type for better display
       const precision = getMetricPrecision(metric);
       stats[metric] = {
         avg: Math.round(avg * precision) / precision,
@@ -123,7 +96,7 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
   });
 
   return {
-    chartData: completeChartData,
+    chartData,
     summary: {
       duration,
       availableMetrics,
@@ -132,61 +105,76 @@ export function combineFileData(file1Data: ProcessedFitData | null, file2Data: P
   };
 }
 
-function interpolateDataPoint(records: any[], targetTime: number): { [key: string]: number } {
-  const result: { [key: string]: number } = {};
-  
-  // Find records before and after target time
-  const beforeRecord = records
-    .filter(r => r.timestamp <= targetTime)
-    .sort((a, b) => b.timestamp - a.timestamp)[0];
-    
-  const afterRecord = records
-    .filter(r => r.timestamp >= targetTime)
-    .sort((a, b) => a.timestamp - b.timestamp)[0];
-
-  if (!beforeRecord || !afterRecord || beforeRecord.timestamp === afterRecord.timestamp) {
-    // No interpolation possible, return closest record
-    const closest = beforeRecord || afterRecord;
-    if (closest) {
-      ['power', 'heart_rate', 'speed', 'cadence', 'altitude'].forEach(metric => {
-        if (closest[metric] !== undefined && closest[metric] >= 0) {
-          result[metric] = closest[metric];
-        }
-      });
-    }
-    return result;
-  }
-
-  // Linear interpolation
-  const timeDiff = afterRecord.timestamp - beforeRecord.timestamp;
-  const timeRatio = (targetTime - beforeRecord.timestamp) / timeDiff;
-
-  ['power', 'heart_rate', 'speed', 'cadence', 'altitude'].forEach(metric => {
-    const beforeValue = beforeRecord[metric];
-    const afterValue = afterRecord[metric];
-    
-    if (beforeValue !== undefined && afterValue !== undefined && 
-        beforeValue >= 0 && afterValue >= 0) {
-      result[metric] = beforeValue + (afterValue - beforeValue) * timeRatio;
-    } else if (beforeValue !== undefined && beforeValue >= 0) {
-      result[metric] = beforeValue;
-    } else if (afterValue !== undefined && afterValue >= 0) {
-      result[metric] = afterValue;
-    }
-  });
-
-  return result;
-}
-
-function findClosestRecords(records: any[], targetTime: number, maxDistance = 5000) {
-  const closeRecords = records.filter(record => 
-    Math.abs(record.timestamp - targetTime) <= maxDistance
+/**
+ * Get the best value for a metric at a specific timestamp using intelligent interpolation
+ */
+function getValueAtTimestamp(records: any[], targetTime: number, metric: string): number | null {
+  // Find records with this metric around the target time
+  const recordsWithMetric = records.filter(r => 
+    r[metric] !== undefined && 
+    r[metric] !== null && 
+    !isNaN(r[metric]) && 
+    r[metric] >= 0
   );
 
-  // Sort by distance to target time and return the closest ones
-  return closeRecords
-    .sort((a, b) => Math.abs(a.timestamp - targetTime) - Math.abs(b.timestamp - targetTime))
-    .slice(0, 2); // Take up to 2 closest records for better precision
+  if (recordsWithMetric.length === 0) {
+    return null;
+  }
+
+  // Find exact match first
+  const exactMatch = recordsWithMetric.find(r => r.timestamp === targetTime);
+  if (exactMatch) {
+    return exactMatch[metric];
+  }
+
+  // Find the closest records before and after
+  const beforeRecords = recordsWithMetric
+    .filter(r => r.timestamp <= targetTime)
+    .sort((a, b) => b.timestamp - a.timestamp);
+    
+  const afterRecords = recordsWithMetric
+    .filter(r => r.timestamp >= targetTime)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const beforeRecord = beforeRecords[0];
+  const afterRecord = afterRecords[0];
+
+  // If we only have one side, use the closest record within reasonable distance
+  const maxDistance = 30000; // 30 seconds max distance
+  
+  if (!beforeRecord && afterRecord) {
+    if (Math.abs(afterRecord.timestamp - targetTime) <= maxDistance) {
+      return afterRecord[metric];
+    }
+    return null;
+  }
+  
+  if (!afterRecord && beforeRecord) {
+    if (Math.abs(beforeRecord.timestamp - targetTime) <= maxDistance) {
+      return beforeRecord[metric];
+    }
+    return null;
+  }
+
+  if (!beforeRecord || !afterRecord) {
+    return null;
+  }
+
+  // Check if records are too far apart for reliable interpolation
+  const timeDiff = afterRecord.timestamp - beforeRecord.timestamp;
+  if (timeDiff > maxDistance) {
+    // Use the closer record
+    const beforeDist = Math.abs(targetTime - beforeRecord.timestamp);
+    const afterDist = Math.abs(targetTime - afterRecord.timestamp);
+    return beforeDist <= afterDist ? beforeRecord[metric] : afterRecord[metric];
+  }
+
+  // Linear interpolation for smooth curves
+  const timeRatio = (targetTime - beforeRecord.timestamp) / timeDiff;
+  const beforeValue = beforeRecord[metric];
+  const afterValue = afterRecord[metric];
+  
+  return beforeValue + (afterValue - beforeValue) * timeRatio;
 }
 
 function getMetricPrecision(metric: string): number {

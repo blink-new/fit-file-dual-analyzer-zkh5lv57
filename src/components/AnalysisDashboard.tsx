@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { ArrowLeft, ChevronRight, ChevronLeft, BarChart3 } from 'lucide-react';
 import { MetricChart } from './MetricChart';
@@ -24,6 +24,13 @@ export function AnalysisDashboard({ combinedData, onNewUpload }: AnalysisDashboa
   const [statisticsPanelCollapsed, setStatisticsPanelCollapsed] = useState(false);
 
   const { chartData, summary } = combinedData;
+
+  // Ensure EXACT time domain alignment for all charts
+  const timeDomain: [number, number] = useMemo(() => {
+    if (chartData.length === 0) return [0, 0];
+    // Use first and last timestamps to ensure all charts have identical time range
+    return [chartData[0].timestamp, chartData[chartData.length - 1].timestamp];
+  }, [chartData]);
 
   if (chartData.length === 0) {
     return (
@@ -105,6 +112,7 @@ export function AnalysisDashboard({ combinedData, onNewUpload }: AnalysisDashboa
                   metric={metric}
                   color={metricColors[metric] || '#6B7280'}
                   unit=""
+                  timeDomain={timeDomain}
                   hoverTime={hoverTime}
                   onHover={setHoverTime}
                 />
@@ -154,14 +162,15 @@ export function AnalysisDashboard({ combinedData, onNewUpload }: AnalysisDashboa
         )}
       </div>
 
-      {/* Comprehensive Hover Data Display */}
+      {/* Synchronized Hover Data Display */}
       {hoverTime && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg text-sm font-medium shadow-lg border border-gray-700 max-w-sm">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg text-sm font-medium shadow-lg border border-gray-700 max-w-sm z-50">
           <div className="text-center text-gray-300 text-xs mb-2">
-            Time: {chartData.find(d => d.timestamp === hoverTime)?.time || 'N/A'}
+            Time: {new Date(hoverTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
           <div className="grid grid-cols-1 gap-1">
             {summary.availableMetrics.map(metric => {
+              // Find the exact data point at hover time - guaranteed to exist due to unified timestamps
               const dataPoint = chartData.find(d => d.timestamp === hoverTime);
               const value = dataPoint?.[metric as keyof ChartDataPoint] as number;
               const unit = {
@@ -172,31 +181,31 @@ export function AnalysisDashboard({ combinedData, onNewUpload }: AnalysisDashboa
                 altitude: 'm'
               }[metric] || '';
               
-              if (value !== null && value !== undefined && !isNaN(value) && value > 0) {
-                return (
-                  <div key={metric} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div 
-                        className="w-2 h-2 rounded-full" 
-                        style={{ backgroundColor: metricColors[metric] || '#6B7280' }}
-                      />
-                      <span className="text-xs">
-                        {{
-                          power: 'Power',
-                          heart_rate: 'HR',
-                          speed: 'Speed',
-                          cadence: 'Cadence',
-                          altitude: 'Elevation'
-                        }[metric] || metric}:
-                      </span>
-                    </div>
-                    <span className="text-xs font-medium">
-                      {metric === 'speed' ? value.toFixed(1) : Math.round(value)} {unit}
+              return (
+                <div key={metric} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: metricColors[metric] || '#6B7280' }}
+                    />
+                    <span className="text-xs">
+                      {{
+                        power: 'Power',
+                        heart_rate: 'HR',
+                        speed: 'Speed',
+                        cadence: 'Cadence',
+                        altitude: 'Elevation'
+                      }[metric] || metric}:
                     </span>
                   </div>
-                );
-              }
-              return null;
+                  <span className="text-xs font-medium">
+                    {value !== null && value !== undefined && !isNaN(value) 
+                      ? `${metric === 'speed' ? value.toFixed(1) : Math.round(value)} ${unit}`
+                      : '—'
+                    }
+                  </span>
+                </div>
+              );
             })}
           </div>
         </div>
